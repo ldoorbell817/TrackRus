@@ -1,92 +1,115 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>Dirt Bike Trails & Tracks</title>
+<meta charset="UTF-8">
+<title>Dirt Bike Finder</title>
 
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
-  <style>
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      display: flex;
-      height: 100vh;
-    }
+<style>
+body {
+  margin: 0;
+  font-family: Arial;
+  display: flex;
+  height: 100vh;
+}
 
-    .sidebar {
-      width: 320px;
-      background: #f5f5f5;
-      padding: 15px;
-      overflow-y: auto;
-      box-shadow: 2px 0 8px rgba(0,0,0,0.1);
-    }
+.sidebar {
+  width: 360px;
+  background: #f4f4f4;
+  padding: 12px;
+  overflow-y: auto;
+}
 
-    #map {
-      flex: 1;
-    }
+#map {
+  flex: 1;
+}
 
-    h2 {
-      margin-top: 0;
-    }
+.item {
+  background: white;
+  padding: 10px;
+  margin-top: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
 
-    select, button {
-      width: 100%;
-      padding: 8px;
-      margin-top: 8px;
-    }
+.item:hover {
+  background: #eaeaea;
+}
 
-    .item {
-      background: white;
-      padding: 10px;
-      margin-top: 10px;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: 0.2s;
-    }
-
-    .item:hover {
-      background: #e8e8e8;
-    }
-
-    .tag {
-      font-size: 12px;
-      padding: 2px 6px;
-      border-radius: 4px;
-      color: white;
-    }
-
-    .trail { background: #444; }
-    .mx { background: #d9534f; }
-  </style>
+input, select, button {
+  width: 100%;
+  padding: 6px;
+  margin-top: 6px;
+}
+</style>
 </head>
 
 <body>
 
 <div class="sidebar">
-  <h2>🏍️ Tracks R US</h2>
-  <h3> CA Tracks and Trails</h3>
-  
-  <!-- Difficulty filter -->
-  <label>Difficulty</label>
-  <select id="difficulty">
-    <option value="all">All</option>
-    <option value="beginner">Beginner</option>
-    <option value="intermediate">Intermediate</option>
-    <option value="advanced">Advanced</option>
-  </select>
+<h2>🏍️ Finder</h2>
 
-  <!-- Type filter -->
-  <label style="margin-top:10px;">Type</label>
-  <select id="type">
-    <option value="all">All</option>
-    <option value="trail">Trails</option>
-    <option value="mx">Tracks</option>
-  </select>
+<button onclick="loadAll()">Load Spots</button>
 
-  <button onclick="loadData()">Load Nearby</button>
+<hr>
 
-  <div id="list"></div>
+<h3>Filters</h3>
+
+<select id="filterType">
+  <option value="all">All Types</option>
+  <option value="trail">Trails</option>
+  <option value="mx">Tracks</option>
+</select>
+
+<select id="filterDiff">
+  <option value="all">All Difficulty</option>
+  <option value="beginner">Beginner</option>
+  <option value="intermediate">Intermediate</option>
+  <option value="advanced">Advanced</option>
+</select>
+
+<label>Vehicle Type</label>
+<select id="filterVehicle" multiple>
+  <option value="bike">Bikes</option>
+  <option value="utv">UTV</option>
+  <option value="atv">ATV</option>
+</select>
+
+<button onclick="applyFilters()">Apply Filters</button>
+
+<hr>
+
+<h3>Add Spot</h3>
+
+<input id="name" placeholder="Name">
+
+<select id="type">
+  <option value="trail">Trail</option>
+  <option value="mx">Track</option>
+</select>
+
+<select id="difficulty">
+  <option value="beginner">Beginner</option>
+  <option value="intermediate">Intermediate</option>
+  <option value="advanced">Advanced</option>
+</select>
+
+<input id="address" placeholder="Street Address">
+<input id="postal" placeholder="Postal Code">
+
+<label>Allowed Vehicles</label>
+<select id="vehicle" multiple>
+  <option value="bike">Bikes</option>
+  <option value="utv">UTV</option>
+  <option value="atv">ATV</option>
+</select>
+
+<button onclick="addSpot()">Submit</button>
+
+<hr>
+
+<div id="list"></div>
 </div>
 
 <div id="map"></div>
@@ -94,97 +117,148 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
+const SUPABASE_URL = "YOUR_SUPABASE_URL";
+const SUPABASE_KEY = "YOUR_SUPABASE_KEY";
+
 let map;
 let markers = [];
+let allSpots = [];
 
-// 🧠 Database (tracks + trails)
-const data = [
-  { name: "Club Moto MX", type: "mx", difficulty: "advanced", coords: [37.7016, -121.7650] },
-  { name: "Argyll MX Park", type: "mx", difficulty: "intermediate", coords: [38.4440, -121.8200] },
-  { name: "Corral Hollow OHV", type: "trail", difficulty: "intermediate", coords: [37.6200, -121.5600] },
-  { name: "Metcalf motorcycle county park", type: "mx", difficulty: "intermediate", coords: [37.2461343, -121.6841016] },
-  { name: "Carnegie State Vehicular Recreation Area", type: "trail", difficulty: "beginner", coords: [37.6701611, -121.4599542] },
-  { name: "Hangtown MX", type: "mx", difficulty: "beginner", coords: [38.6225321, -121.1097586] },
-  { name: "Garrahan Off Road Training", type: "mx", difficulty: "beginner", coords: [37.1726491, -122.0724863] },
-  { name: "AMP Racing", type: "mx", difficulty: "intermediate", coords: [37.475208, -120.630805] },
-  { name: "Del Puerto Canyon", type: "trail", difficulty: "advanced", coords: [37.4550, -121.1100] },
-  { name: "Beginner Practice Area", type: "trail", difficulty: "beginner", coords: [37.6500, -121.7000] }
+// DEFAULT DATA
+const defaultSpots = [
+  { name: "Club Moto MX", type: "mx", difficulty: "advanced", vehicle: ["bike"], lat: 37.7016, lng: -121.7650 },
+  { name: "Argyll MX Park", type: "mx", difficulty: "intermediate", vehicle: ["bike"], lat: 38.4440, lng: -121.8200 },
+  { name: "Corral Hollow OHV", type: "trail", difficulty: "intermediate", vehicle: ["bike","atv","utv"], lat: 37.6200, lng: -121.5600 },
+  { name: "Del Puerto Canyon", type: "trail", difficulty: "advanced", vehicle: ["bike","atv"], lat: 37.4550, lng: -121.1100 }
 ];
 
-// 🎨 colors
-function getColor(diff) {
-  if (diff === "beginner") return "green";
-  if (diff === "intermediate") return "orange";
-  return "red";
+// INIT MAP
+function initMap() {
+  map = L.map('map').setView([37.7749, -122.4194], 10);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 }
 
-function initMap(lat, lng) {
-  map = L.map('map').setView([lat, lng], 10);
-
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap'
-  }).addTo(map);
-
-  L.marker([lat, lng]).addTo(map)
-    .bindPopup("📍 You are here")
-    .openPopup();
+// LOAD FROM SUPABASE
+async function loadFromDB() {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/spots`, {
+    headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${SUPABASE_KEY}`
+    }
+  });
+  return await res.json();
 }
 
-function clear() {
+// LOAD ALL DATA
+async function loadAll() {
+  const db = await loadFromDB();
+  allSpots = [...defaultSpots, ...db];
+  render(allSpots);
+}
+
+// FILTER
+function applyFilters() {
+  const type = document.getElementById("filterType").value;
+  const diff = document.getElementById("filterDiff").value;
+
+  const selectedVehicles = Array.from(
+    document.getElementById("filterVehicle").selectedOptions
+  ).map(o => o.value);
+
+  const filtered = allSpots.filter(s => {
+
+    if (type !== "all" && s.type !== type) return false;
+    if (diff !== "all" && s.difficulty !== diff) return false;
+
+    if (selectedVehicles.length > 0) {
+      if (!s.vehicle) return false;
+      if (!s.vehicle.some(v => selectedVehicles.includes(v))) return false;
+    }
+
+    return true;
+  });
+
+  render(filtered);
+}
+
+// RENDER
+function render(spots) {
+  document.getElementById("list").innerHTML = "";
   markers.forEach(m => map.removeLayer(m));
   markers = [];
-}
 
-function loadData() {
-  const diff = document.getElementById("difficulty").value;
-  const type = document.getElementById("type").value;
-  const list = document.getElementById("list");
-
-  list.innerHTML = "";
-  clear();
-
-  data.forEach(item => {
-    if (diff !== "all" && item.difficulty !== diff) return;
-    if (type !== "all" && item.type !== type) return;
-
-    // MAP MARKER
-    const marker = L.circleMarker(item.coords, {
-      radius: 8,
-      color: getColor(item.difficulty),
-      fillOpacity: 0.9
-    }).addTo(map);
-
-    marker.bindPopup(`
-      <b>${item.name}</b><br>
-      Type: ${item.type}<br>
-      Difficulty: ${item.difficulty}
-    `);
-
+  spots.forEach(s => {
+    const marker = L.marker([s.lat, s.lng]).addTo(map);
     markers.push(marker);
 
-    // LEFT LIST ITEM
+    marker.bindPopup(`<b>${s.name}</b><br>${s.type} | ${s.difficulty}`);
+
     const div = document.createElement("div");
     div.className = "item";
-
-    div.innerHTML = `
-      <b>${item.name}</b><br>
-      <span class="tag ${item.type}">${item.type}</span>
-      <span class="tag" style="background:${getColor(item.difficulty)};">
-        ${item.difficulty}
-      </span>
-    `;
+    div.innerHTML = `<b>${s.name}</b><br>${s.type} | ${s.difficulty}`;
 
     div.onclick = () => {
-      map.setView(item.coords, 13);
+      map.setView([s.lat, s.lng], 13);
       marker.openPopup();
     };
 
-    list.appendChild(div);
+    document.getElementById("list").appendChild(div);
   });
 }
 
-// start map at default
-initMap(37.7749, -122.4194);
+// GEOCODE
+async function getCoordinates(address, postal) {
+  const res = await fetch(
+    `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address + "," + postal)}`
+  );
+  const data = await res.json();
+  if (!data.length) return null;
+  return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+}
+
+// ADD SPOT
+async function addSpot() {
+  const coords = await getCoordinates(
+    document.getElementById("address").value,
+    document.getElementById("postal").value
+  );
+
+  if (!coords) {
+    alert("Location not found");
+    return;
+  }
+
+  const vehicles = Array.from(
+    document.getElementById("vehicle").selectedOptions
+  ).map(o => o.value);
+
+  const spot = {
+    name: document.getElementById("name").value,
+    type: document.getElementById("type").value,
+    difficulty: document.getElementById("difficulty").value,
+    lat: coords.lat,
+    lng: coords.lng,
+    vehicle: vehicles
+  };
+
+  await fetch(`${SUPABASE_URL}/rest/v1/spots`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${SUPABASE_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(spot)
+  });
+
+  alert("Spot added!");
+  loadAll();
+}
+
+// START
+initMap();
+loadAll();
 </script>
 
 </body>
