@@ -22,13 +22,9 @@
       box-shadow: 2px 0 8px rgba(0,0,0,0.1);
     }
 
-    #map {
-      flex: 1;
-    }
+    #map { flex: 1; }
 
-    h2 {
-      margin-top: 0;
-    }
+    h2 { margin-top: 0; }
 
     select, button {
       width: 100%;
@@ -42,22 +38,27 @@
       margin-top: 10px;
       border-radius: 8px;
       cursor: pointer;
-      transition: 0.2s;
     }
 
-    .item:hover {
-      background: #e8e8e8;
-    }
+    .item:hover { background: #e8e8e8; }
 
     .tag {
       font-size: 12px;
       padding: 2px 6px;
       border-radius: 4px;
       color: white;
+      margin-right: 4px;
+      display: inline-block;
     }
 
     .trail { background: #444; }
     .mx { background: #d9534f; }
+
+    .veh-group label {
+      display: block;
+      margin-top: 5px;
+      font-size: 14px;
+    }
   </style>
 </head>
 
@@ -83,6 +84,14 @@
     <option value="mx">Tracks</option>
   </select>
 
+  <!-- VEHICLE FILTER (NEW) -->
+  <label style="margin-top:10px;">Vehicle Type</label>
+  <div class="veh-group">
+    <label><input type="checkbox" class="veh" value="bikes" checked> Bikes</label>
+    <label><input type="checkbox" class="veh" value="utv" checked> UTVs</label>
+    <label><input type="checkbox" class="veh" value="atv" checked> ATVs</label>
+  </div>
+
   <button onclick="loadData()">Load Nearby</button>
 
   <div id="list"></div>
@@ -96,16 +105,15 @@
 let map;
 let markers = [];
 
-// 🧠 Database (tracks + trails)
+// 🧠 Database (NOW includes vehicles)
 const data = [
-  { name: "Club Moto MX", type: "mx", difficulty: "advanced", coords: [37.7016, -121.7650] },
-  { name: "Argyll MX Park", type: "mx", difficulty: "intermediate", coords: [38.4440, -121.8200] },
-  { name: "Corral Hollow OHV", type: "trail", difficulty: "intermediate", coords: [37.6200, -121.5600] },
-  { name: "Del Puerto Canyon", type: "trail", difficulty: "advanced", coords: [37.4550, -121.1100] },
-  { name: "Beginner Practice Area", type: "trail", difficulty: "beginner", coords: [37.6500, -121.7000] }
+  { name: "Club Moto MX", type: "mx", difficulty: "advanced", vehicles: ["bikes"], coords: [37.7016, -121.7650] },
+  { name: "Argyll MX Park", type: "mx", difficulty: "intermediate", vehicles: ["bikes", "utv", "atv"], coords: [38.4440, -121.8200] },
+  { name: "Corral Hollow OHV", type: "trail", difficulty: "intermediate", vehicles: ["bikes", "utv", "atv"], coords: [37.6200, -121.5600] },
+  { name: "Del Puerto Canyon", type: "trail", difficulty: "advanced", vehicles: ["bikes"], coords: [37.4550, -121.1100] },
+  { name: "Beginner Practice Area", type: "trail", difficulty: "beginner", vehicles: ["bikes", "atv"], coords: [37.6500, -121.7000] }
 ];
 
-// 🎨 colors
 function getColor(diff) {
   if (diff === "beginner") return "green";
   if (diff === "intermediate") return "orange";
@@ -129,11 +137,18 @@ function clear() {
   markers = [];
 }
 
+// get selected vehicles
+function getSelectedVehicles() {
+  return Array.from(document.querySelectorAll(".veh:checked"))
+    .map(cb => cb.value);
+}
+
 function loadData() {
   const diff = document.getElementById("difficulty").value;
   const type = document.getElementById("type").value;
-  const list = document.getElementById("list");
+  const vehicles = getSelectedVehicles();
 
+  const list = document.getElementById("list");
   list.innerHTML = "";
   clear();
 
@@ -141,7 +156,9 @@ function loadData() {
     if (diff !== "all" && item.difficulty !== diff) return;
     if (type !== "all" && item.type !== type) return;
 
-    // MAP MARKER
+    // must match at least one selected vehicle
+    if (!item.vehicles.some(v => vehicles.includes(v))) return;
+
     const marker = L.circleMarker(item.coords, {
       radius: 8,
       color: getColor(item.difficulty),
@@ -151,12 +168,12 @@ function loadData() {
     marker.bindPopup(`
       <b>${item.name}</b><br>
       Type: ${item.type}<br>
-      Difficulty: ${item.difficulty}
+      Difficulty: ${item.difficulty}<br>
+      Vehicles: ${item.vehicles.join(", ")}
     `);
 
     markers.push(marker);
 
-    // LEFT LIST ITEM
     const div = document.createElement("div");
     div.className = "item";
 
@@ -177,7 +194,6 @@ function loadData() {
   });
 }
 
-// start map at default
 initMap(37.7749, -122.4194);
 </script>
 
