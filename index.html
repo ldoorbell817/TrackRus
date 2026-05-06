@@ -37,7 +37,7 @@ body {
   background: #eaeaea;
 }
 
-input, select, button {
+select, button {
   width: 100%;
   padding: 6px;
   margin-top: 6px;
@@ -50,7 +50,7 @@ input, select, button {
 <div class="sidebar">
 <h2>🏍️ Finder</h2>
 
-<button onclick="loadAll()">Load Spots</button>
+<button onclick="applyFilters()">Show Spots</button>
 
 <hr>
 
@@ -76,37 +76,6 @@ input, select, button {
   <option value="atv">ATV</option>
 </select>
 
-<button onclick="applyFilters()">Apply Filters</button>
-
-<hr>
-
-<h3>Add Spot</h3>
-
-<input id="name" placeholder="Name">
-
-<select id="type">
-  <option value="trail">Trail</option>
-  <option value="mx">Track</option>
-</select>
-
-<select id="difficulty">
-  <option value="beginner">Beginner</option>
-  <option value="intermediate">Intermediate</option>
-  <option value="advanced">Advanced</option>
-</select>
-
-<input id="address" placeholder="Street Address">
-<input id="postal" placeholder="Postal Code">
-
-<label>Allowed Vehicles</label>
-<select id="vehicle" multiple>
-  <option value="bike">Bikes</option>
-  <option value="utv">UTV</option>
-  <option value="atv">ATV</option>
-</select>
-
-<button onclick="addSpot()">Submit</button>
-
 <hr>
 
 <div id="list"></div>
@@ -117,47 +86,28 @@ input, select, button {
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-const SUPABASE_URL = "YOUR_SUPABASE_URL";
-const SUPABASE_KEY = "YOUR_SUPABASE_KEY";
-
 let map;
 let markers = [];
-let allSpots = [];
 
-// DEFAULT DATA
-const defaultSpots = [
+// PRELOADED DATA
+const spots = [
   { name: "Club Moto MX", type: "mx", difficulty: "advanced", vehicle: ["bike"], lat: 37.7016, lng: -121.7650 },
   { name: "Argyll MX Park", type: "mx", difficulty: "intermediate", vehicle: ["bike"], lat: 38.4440, lng: -121.8200 },
   { name: "Corral Hollow OHV", type: "trail", difficulty: "intermediate", vehicle: ["bike","atv","utv"], lat: 37.6200, lng: -121.5600 },
-  { name: "Del Puerto Canyon", type: "trail", difficulty: "advanced", vehicle: ["bike","atv"], lat: 37.4550, lng: -121.1100 }
+  { name: "Del Puerto Canyon", type: "trail", difficulty: "advanced", vehicle: ["bike","atv"], lat: 37.4550, lng: -121.1100 },
+  { name: "Beginner Practice Area", type: "trail", difficulty: "beginner", vehicle: ["bike"], lat: 37.6500, lng: -121.7000 }
 ];
 
 // INIT MAP
 function initMap() {
   map = L.map('map').setView([37.7749, -122.4194], 10);
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
 }
 
-// LOAD FROM SUPABASE
-async function loadFromDB() {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/spots`, {
-    headers: {
-      apikey: SUPABASE_KEY,
-      Authorization: `Bearer ${SUPABASE_KEY}`
-    }
-  });
-  return await res.json();
-}
-
-// LOAD ALL DATA
-async function loadAll() {
-  const db = await loadFromDB();
-  allSpots = [...defaultSpots, ...db];
-  render(allSpots);
-}
-
-// FILTER
+// FILTER + RENDER
 function applyFilters() {
   const type = document.getElementById("filterType").value;
   const diff = document.getElementById("filterDiff").value;
@@ -166,13 +116,12 @@ function applyFilters() {
     document.getElementById("filterVehicle").selectedOptions
   ).map(o => o.value);
 
-  const filtered = allSpots.filter(s => {
+  const filtered = spots.filter(s => {
 
     if (type !== "all" && s.type !== type) return false;
     if (diff !== "all" && s.difficulty !== diff) return false;
 
     if (selectedVehicles.length > 0) {
-      if (!s.vehicle) return false;
       if (!s.vehicle.some(v => selectedVehicles.includes(v))) return false;
     }
 
@@ -183,12 +132,12 @@ function applyFilters() {
 }
 
 // RENDER
-function render(spots) {
+function render(data) {
   document.getElementById("list").innerHTML = "";
   markers.forEach(m => map.removeLayer(m));
   markers = [];
 
-  spots.forEach(s => {
+  data.forEach(s => {
     const marker = L.marker([s.lat, s.lng]).addTo(map);
     markers.push(marker);
 
@@ -207,58 +156,9 @@ function render(spots) {
   });
 }
 
-// GEOCODE
-async function getCoordinates(address, postal) {
-  const res = await fetch(
-    `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address + "," + postal)}`
-  );
-  const data = await res.json();
-  if (!data.length) return null;
-  return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-}
-
-// ADD SPOT
-async function addSpot() {
-  const coords = await getCoordinates(
-    document.getElementById("address").value,
-    document.getElementById("postal").value
-  );
-
-  if (!coords) {
-    alert("Location not found");
-    return;
-  }
-
-  const vehicles = Array.from(
-    document.getElementById("vehicle").selectedOptions
-  ).map(o => o.value);
-
-  const spot = {
-    name: document.getElementById("name").value,
-    type: document.getElementById("type").value,
-    difficulty: document.getElementById("difficulty").value,
-    lat: coords.lat,
-    lng: coords.lng,
-    vehicle: vehicles
-  };
-
-  await fetch(`${SUPABASE_URL}/rest/v1/spots`, {
-    method: "POST",
-    headers: {
-      apikey: SUPABASE_KEY,
-      Authorization: `Bearer ${SUPABASE_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(spot)
-  });
-
-  alert("Spot added!");
-  loadAll();
-}
-
 // START
 initMap();
-loadAll();
+applyFilters();
 </script>
 
 </body>
