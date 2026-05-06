@@ -1,84 +1,91 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
-<title>Dirt Bike Finder</title>
+  <meta charset="UTF-8">
+  <title>Dirt Bike Trails & Tracks</title>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
-<style>
-body {
-  margin: 0;
-  font-family: Arial;
-  display: flex;
-  height: 100vh;
-}
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      display: flex;
+      height: 100vh;
+    }
 
-.sidebar {
-  width: 360px;
-  background: #f4f4f4;
-  padding: 12px;
-  overflow-y: auto;
-}
+    .sidebar {
+      width: 320px;
+      background: #f5f5f5;
+      padding: 15px;
+      overflow-y: auto;
+      box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+    }
 
-#map {
-  flex: 1;
-}
+    #map {
+      flex: 1;
+    }
 
-.item {
-  background: white;
-  padding: 10px;
-  margin-top: 8px;
-  border-radius: 8px;
-  cursor: pointer;
-}
+    h2 {
+      margin-top: 0;
+    }
 
-.item:hover {
-  background: #eaeaea;
-}
+    select, button {
+      width: 100%;
+      padding: 8px;
+      margin-top: 8px;
+    }
 
-select, button {
-  width: 100%;
-  padding: 6px;
-  margin-top: 6px;
-}
-</style>
+    .item {
+      background: white;
+      padding: 10px;
+      margin-top: 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    .item:hover {
+      background: #e8e8e8;
+    }
+
+    .tag {
+      font-size: 12px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: white;
+    }
+
+    .trail { background: #444; }
+    .mx { background: #d9534f; }
+  </style>
 </head>
 
 <body>
 
 <div class="sidebar">
-<h2>🏍️ Finder</h2>
+  <h2>🏍️ Dirt Bike Finder</h2>
 
-<button onclick="applyFilters()">Show Spots</button>
+  <!-- Difficulty filter -->
+  <label>Difficulty</label>
+  <select id="difficulty">
+    <option value="all">All</option>
+    <option value="beginner">Beginner</option>
+    <option value="intermediate">Intermediate</option>
+    <option value="advanced">Advanced</option>
+  </select>
 
-<hr>
+  <!-- Type filter -->
+  <label style="margin-top:10px;">Type</label>
+  <select id="type">
+    <option value="all">All</option>
+    <option value="trail">Trails</option>
+    <option value="mx">Tracks</option>
+  </select>
 
-<h3>Filters</h3>
+  <button onclick="loadData()">Load Nearby</button>
 
-<select id="filterType">
-  <option value="all">All Types</option>
-  <option value="trail">Trails</option>
-  <option value="mx">Tracks</option>
-</select>
-
-<select id="filterDiff">
-  <option value="all">All Difficulty</option>
-  <option value="beginner">Beginner</option>
-  <option value="intermediate">Intermediate</option>
-  <option value="advanced">Advanced</option>
-</select>
-
-<label>Vehicle Type</label>
-<select id="filterVehicle" multiple>
-  <option value="bike">Bikes</option>
-  <option value="utv">UTV</option>
-  <option value="atv">ATV</option>
-</select>
-
-<hr>
-
-<div id="list"></div>
+  <div id="list"></div>
 </div>
 
 <div id="map"></div>
@@ -89,76 +96,89 @@ select, button {
 let map;
 let markers = [];
 
-// PRELOADED DATA
-const spots = [
-  { name: "Club Moto MX", type: "mx", difficulty: "advanced", vehicle: ["bike"], lat: 37.7016, lng: -121.7650 },
-  { name: "Argyll MX Park", type: "mx", difficulty: "intermediate", vehicle: ["bike"], lat: 38.4440, lng: -121.8200 },
-  { name: "Corral Hollow OHV", type: "trail", difficulty: "intermediate", vehicle: ["bike","atv","utv"], lat: 37.6200, lng: -121.5600 },
-  { name: "Del Puerto Canyon", type: "trail", difficulty: "advanced", vehicle: ["bike","atv"], lat: 37.4550, lng: -121.1100 },
-  { name: "Beginner Practice Area", type: "trail", difficulty: "beginner", vehicle: ["bike"], lat: 37.6500, lng: -121.7000 }
+// 🧠 Database (tracks + trails)
+const data = [
+  { name: "Club Moto MX", type: "mx", difficulty: "advanced", coords: [37.7016, -121.7650] },
+  { name: "Argyll MX Park", type: "mx", difficulty: "intermediate", coords: [38.4440, -121.8200] },
+  { name: "Corral Hollow OHV", type: "trail", difficulty: "intermediate", coords: [37.6200, -121.5600] },
+  { name: "Del Puerto Canyon", type: "trail", difficulty: "advanced", coords: [37.4550, -121.1100] },
+  { name: "Beginner Practice Area", type: "trail", difficulty: "beginner", coords: [37.6500, -121.7000] }
 ];
 
-// INIT MAP
-function initMap() {
-  map = L.map('map').setView([37.7749, -122.4194], 10);
+// 🎨 colors
+function getColor(diff) {
+  if (diff === "beginner") return "green";
+  if (diff === "intermediate") return "orange";
+  return "red";
+}
+
+function initMap(lat, lng) {
+  map = L.map('map').setView([lat, lng], 10);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap'
   }).addTo(map);
+
+  L.marker([lat, lng]).addTo(map)
+    .bindPopup("📍 You are here")
+    .openPopup();
 }
 
-// FILTER + RENDER
-function applyFilters() {
-  const type = document.getElementById("filterType").value;
-  const diff = document.getElementById("filterDiff").value;
-
-  const selectedVehicles = Array.from(
-    document.getElementById("filterVehicle").selectedOptions
-  ).map(o => o.value);
-
-  const filtered = spots.filter(s => {
-
-    if (type !== "all" && s.type !== type) return false;
-    if (diff !== "all" && s.difficulty !== diff) return false;
-
-    if (selectedVehicles.length > 0) {
-      if (!s.vehicle.some(v => selectedVehicles.includes(v))) return false;
-    }
-
-    return true;
-  });
-
-  render(filtered);
-}
-
-// RENDER
-function render(data) {
-  document.getElementById("list").innerHTML = "";
+function clear() {
   markers.forEach(m => map.removeLayer(m));
   markers = [];
+}
 
-  data.forEach(s => {
-    const marker = L.marker([s.lat, s.lng]).addTo(map);
+function loadData() {
+  const diff = document.getElementById("difficulty").value;
+  const type = document.getElementById("type").value;
+  const list = document.getElementById("list");
+
+  list.innerHTML = "";
+  clear();
+
+  data.forEach(item => {
+    if (diff !== "all" && item.difficulty !== diff) return;
+    if (type !== "all" && item.type !== type) return;
+
+    // MAP MARKER
+    const marker = L.circleMarker(item.coords, {
+      radius: 8,
+      color: getColor(item.difficulty),
+      fillOpacity: 0.9
+    }).addTo(map);
+
+    marker.bindPopup(`
+      <b>${item.name}</b><br>
+      Type: ${item.type}<br>
+      Difficulty: ${item.difficulty}
+    `);
+
     markers.push(marker);
 
-    marker.bindPopup(`<b>${s.name}</b><br>${s.type} | ${s.difficulty}`);
-
+    // LEFT LIST ITEM
     const div = document.createElement("div");
     div.className = "item";
-    div.innerHTML = `<b>${s.name}</b><br>${s.type} | ${s.difficulty}`;
+
+    div.innerHTML = `
+      <b>${item.name}</b><br>
+      <span class="tag ${item.type}">${item.type}</span>
+      <span class="tag" style="background:${getColor(item.difficulty)};">
+        ${item.difficulty}
+      </span>
+    `;
 
     div.onclick = () => {
-      map.setView([s.lat, s.lng], 13);
+      map.setView(item.coords, 13);
       marker.openPopup();
     };
 
-    document.getElementById("list").appendChild(div);
+    list.appendChild(div);
   });
 }
 
-// START
-initMap();
-applyFilters();
+// start map at default
+initMap(37.7749, -122.4194);
 </script>
 
 </body>
